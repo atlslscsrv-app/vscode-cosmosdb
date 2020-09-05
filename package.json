@@ -1,12 +1,12 @@
 {
     "name": "vscode-cosmosdb",
-    "version": "0.12.3-alpha",
+    "version": "0.14.1-alpha",
     "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
     "publisher": "ms-azuretools",
     "displayName": "Azure Databases",
     "description": "Create, browse, and update globally distributed, multi-model databases in Azure.",
     "engines": {
-        "vscode": "^1.31.0"
+        "vscode": "^1.40.0"
     },
     "galleryBanner": {
         "color": "#3c3c3c",
@@ -44,7 +44,7 @@
         "onCommand:azureDatabases.openInPortal",
         "onCommand:cosmosDB.attachDatabaseAccount",
         "onCommand:cosmosDB.attachEmulator",
-        "onCommand:cosmosDB.createAccount",
+        "onCommand:azureDatabases.createServer",
         "onCommand:cosmosDB.deleteAccount",
         "onCommand:cosmosDB.detachDatabaseAccount",
         "onCommand:cosmosDB.createMongoDatabase",
@@ -75,15 +75,21 @@
         "onCommand:cosmosDB.copyConnectionString",
         "onCommand:cosmosDB.launchMongoShell",
         "onCommand:cosmosDB.openGraphExplorer",
-        "onCommand:postgreSQL.createServer",
         "onCommand:postgreSQL.deleteServer",
         "onCommand:postgreSQL.createDatabase",
         "onCommand:postgreSQL.deleteDatabase",
         "onCommand:postgreSQL.deleteTable",
         "onCommand:postgreSQL.openFunction",
+        "onCommand:postgreSQL.openStoredProcedure",
         "onCommand:postgreSQL.deleteFunction",
+        "onCommand:postgreSQL.deleteStoredProcedure",
         "onCommand:postgreSQL.enterCredentials",
-        "onCommand:postgreSQL.configureFirewall"
+        "onCommand:postgreSQL.configureFirewall",
+        "onCommand:postgreSQL.connectDatabase",
+        "onCommand:postgreSQL.createFunctionQuery",
+        "onCommand:postgreSQL.createStoredProcedureQuery",
+        "onCommand:postgreSQL.executeQuery",
+        "onFileSystem:azureDatabases"
     ],
     "contributes": {
         "viewsContainers": {
@@ -116,6 +122,15 @@
                 ],
                 "firstLine": "^#!/.*\\bmongo*\\b",
                 "configuration": "./grammar/configuration.json"
+            },
+            {
+                "id": "postgres",
+                "aliases": [
+                    "PostgreSQL"
+                ],
+                "extensions": [
+                    ".psql"
+                ]
             }
         ],
         "grammars": [
@@ -168,18 +183,9 @@
                 "title": "Attach Emulator..."
             },
             {
-                "category": "Cosmos DB",
-                "command": "cosmosDB.createAccount",
-                "title": "Create Account...",
-                "icon": {
-                    "light": "resources/icons/light/add.svg",
-                    "dark": "resources/icons/dark/add.svg"
-                }
-            },
-            {
-                "category": "PostgreSQL",
-                "command": "postgreSQL.createServer",
-                "title": "Create PostgreSQL Server...",
+                "category": "Azure Databases",
+                "command": "azureDatabases.createServer",
+                "title": "Create Server...",
                 "icon": {
                     "light": "resources/icons/light/add.svg",
                     "dark": "resources/icons/dark/add.svg"
@@ -258,7 +264,7 @@
             {
                 "category": "MongoDB",
                 "command": "cosmosDB.connectMongoDB",
-                "title": "Connect"
+                "title": "Connect to Database..."
             },
             {
                 "category": "MongoDB",
@@ -321,7 +327,7 @@
                 "title": "Open Graph Explorer"
             },
             {
-                "category": "Cosmos DB",
+                "category": "MongoDB",
                 "command": "cosmosDB.newMongoScrapbook",
                 "title": "New Mongo Scrapbook",
                 "icon": {
@@ -346,6 +352,11 @@
             {
                 "category": "Cosmos DB",
                 "command": "cosmosDB.copyConnectionString",
+                "title": "Copy Connection String"
+            },
+            {
+                "category": "PostgreSQL",
+                "command": "postgreSQL.copyConnectionString",
                 "title": "Copy Connection String"
             },
             {
@@ -384,8 +395,18 @@
             },
             {
                 "category": "PostgreSQL",
+                "command": "postgreSQL.openStoredProcedure",
+                "title": "Open Stored Procedure"
+            },
+            {
+                "category": "PostgreSQL",
                 "command": "postgreSQL.deleteFunction",
                 "title": "Delete Function..."
+            },
+            {
+                "category": "PostgreSQL",
+                "command": "postgreSQL.deleteStoredProcedure",
+                "title": "Delete Stored Procedure..."
             },
             {
                 "category": "PostgreSQL",
@@ -396,6 +417,26 @@
                 "category": "PostgreSQL",
                 "command": "postgreSQL.configureFirewall",
                 "title": "Configure Firewall"
+            },
+            {
+                "category": "PostgreSQL",
+                "command": "postgreSQL.connectDatabase",
+                "title": "Connect to Database..."
+            },
+            {
+                "category": "PostgreSQL",
+                "command": "postgreSQL.createFunctionQuery",
+                "title": "Create Function Query..."
+            },
+            {
+                "category": "PostgreSQL",
+                "command": "postgreSQL.createStoredProcedureQuery",
+                "title": "Create Stored Procedure Query..."
+            },
+            {
+                "category": "PostgreSQL",
+                "command": "postgreSQL.executeQuery",
+                "title": "Execute Query..."
             }
         ],
         "menus": {
@@ -427,6 +468,10 @@
                 {
                     "command": "cosmosDB.importDocument",
                     "when": "resourceLangId==json"
+                },
+                {
+                    "command": "postgreSQL.connectDatabase",
+                    "when": "resourceLangId==postgres"
                 }
             ],
             "editor/title": [
@@ -458,12 +503,7 @@
                     "group": "navigation"
                 },
                 {
-                    "command": "cosmosDB.createAccount",
-                    "when": "view == azureDatabasesExplorer",
-                    "group": "navigation"
-                },
-                {
-                    "command": "postgreSQL.createServer",
+                    "command": "azureDatabases.createServer",
                     "when": "view == azureDatabasesExplorer",
                     "group": "navigation"
                 },
@@ -485,12 +525,7 @@
                     "group": "inline"
                 },
                 {
-                    "command": "cosmosDB.createAccount",
-                    "when": "view == azureDatabasesExplorer && viewItem == azureextensionui.azureSubscription",
-                    "group": "1@1"
-                },
-                {
-                    "command": "postgreSQL.createServer",
+                    "command": "azureDatabases.createServer",
                     "when": "view == azureDatabasesExplorer && viewItem == azureextensionui.azureSubscription",
                     "group": "1@1"
                 },
@@ -641,6 +676,10 @@
                     "when": "view == azureDatabasesExplorer && viewItem == postgresFunction"
                 },
                 {
+                    "command": "postgreSQL.deleteStoredProcedure",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresStoredProcedure"
+                },
+                {
                     "command": "cosmosDB.deleteGraph",
                     "when": "view == azureDatabasesExplorer && viewItem == cosmosDBGraph"
                 },
@@ -709,6 +748,10 @@
                     "when": "view == azureDatabasesExplorer && viewItem == cosmosDBTableAccountAttached"
                 },
                 {
+                    "command": "postgreSQL.copyConnectionString",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresDatabase"
+                },
+                {
                     "command": "azureDatabases.refresh",
                     "when": "view == azureDatabasesExplorer && viewItem == cosmosDBMongoServer"
                 },
@@ -735,6 +778,22 @@
                 {
                     "command": "azureDatabases.refresh",
                     "when": "view == azureDatabasesExplorer && viewItem == postgresServer"
+                },
+                {
+                    "command": "azureDatabases.refresh",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresDatabase"
+                },
+                {
+                    "command": "azureDatabases.refresh",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresTables"
+                },
+                {
+                    "command": "azureDatabases.refresh",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresFunctions"
+                },
+                {
+                    "command": "azureDatabases.refresh",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresStoredProcedures"
                 },
                 {
                     "command": "azureDatabases.refresh",
@@ -775,12 +834,28 @@
                 {
                     "command": "cosmosDB.importDocument",
                     "when": "view == azureDatabasesExplorer && viewItem == cosmosDBDocumentCollection"
+                },
+                {
+                    "command": "postgreSQL.connectDatabase",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresDatabase"
+                },
+                {
+                    "command": "postgreSQL.createFunctionQuery",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresFunctions"
+                },
+                {
+                    "command": "postgreSQL.createStoredProcedureQuery",
+                    "when": "view == azureDatabasesExplorer && viewItem == postgresStoredProcedures"
                 }
             ],
             "explorer/context": [
                 {
                     "command": "cosmosDB.importDocument",
                     "when": "resourceLangId == json"
+                },
+                {
+                    "command": "postgreSQL.connectDatabase",
+                    "when": "resourceLangId == postgres"
                 }
             ],
             "commandPalette": [
@@ -807,6 +882,10 @@
                 {
                     "command": "cosmosDB.executeMongoCommand",
                     "when": "editorLangId == 'mongo'"
+                },
+                {
+                    "command": "postgreSQL.executeQuery",
+                    "when": "editorLangId == 'postgres'"
                 }
             ]
         },
@@ -826,7 +905,8 @@
             {
                 "command": "workbench.view.extension.azure",
                 "key": "ctrl+shift+a",
-                "mac": "cmd+shift+a"
+                "mac": "cmd+shift+a",
+                "linux": "shift+alt+a"
             }
         ],
         "configuration": {
@@ -880,6 +960,11 @@
                     "default": true,
                     "description": "Show warning dialog when uploading a document to the cloud."
                 },
+                "azureDatabases.batchSize": {
+                    "type": "number",
+                    "description": "The batch size to be used when querying Azure Database resources.",
+                    "default": 50
+                },
                 "azureDatabases.enableOutputTimestamps": {
                     "type": "boolean",
                     "default": true,
@@ -920,8 +1005,8 @@
         "@types/keytar": "4.0.1",
         "@types/mocha": "^7.0.2",
         "@types/mongodb": "^3.3.2",
-        "@types/node": "^10.0.0",
-        "@types/vscode": "1.31.0",
+        "@types/node": "^12.0.0",
+        "@types/vscode": "1.40.0",
         "antlr4ts-cli": "^0.4.0-alpha.4",
         "azure-arm-resource": "^3.0.0-preview",
         "copy-webpack-plugin": "^5.1.1",
@@ -936,7 +1021,7 @@
         "tslint-microsoft-contrib": "5.0.1",
         "typescript": "^3.8.3",
         "vsce": "^1.37.5",
-        "vscode-azureextensiondev": "^0.3.1",
+        "vscode-azureextensiondev": "^0.4.0",
         "vscode-test": "^1.3.0",
         "webpack": "4.28.1",
         "webpack-cli": "^3.1.2"
@@ -953,11 +1038,12 @@
         "ms-rest": "^2.2.1",
         "ms-rest-azure": "^2.3.1",
         "pg": "^7.18.1",
+        "pg-connection-string": "^2.3.0",
         "pg-structure": "^5.10.7",
         "public-ip": "^4.0.0",
         "semver": "^7.2.2",
         "underscore": "^1.8.3",
-        "vscode-azureextensionui": "^0.29.12",
+        "vscode-azureextensionui": "^0.33.9",
         "vscode-json-languageservice": "^3.0.8",
         "vscode-languageclient": "^4.4.0",
         "vscode-languageserver": "^4.4.0",

@@ -14,10 +14,11 @@ import { localize } from '../../utils/localize';
 import { nonNullProp } from '../../utils/nonNull';
 import { PostgresFunctionsTreeItem } from './PostgresFunctionsTreeItem';
 import { PostgresServerTreeItem } from './PostgresServerTreeItem';
+import { PostgresStoredProceduresTreeItem } from './PostgresStoredProceduresTreeItem';
 import { PostgresTablesTreeItem } from './PostgresTablesTreeItem';
 
-const invalidCredentialsErrorType: string = '28P01';
-const firewallNotConfiguredErrorType: string = '28000';
+export const invalidCredentialsErrorType: string = '28P01';
+export const firewallNotConfiguredErrorType: string = '28000';
 
 export class PostgresDatabaseTreeItem extends AzureParentTreeItem<ISubscriptionContext> {
     public static contextValue: string = "postgresDatabase";
@@ -36,6 +37,10 @@ export class PostgresDatabaseTreeItem extends AzureParentTreeItem<ISubscriptionC
         return this.databaseName;
     }
 
+    public get description(): string {
+        return ext.connectedPostgresDB?.fullId === this.fullId ? localize('connected', 'Connected') : '';
+    }
+
     public get id(): string {
         return this.databaseName;
     }
@@ -49,44 +54,34 @@ export class PostgresDatabaseTreeItem extends AzureParentTreeItem<ISubscriptionC
     }
 
     public async loadMoreChildrenImpl(_clearCache: boolean): Promise<AzExtTreeItem[]> {
-        const { username, password } = await this.parent.getCredentials();
+        try {
+            const clientConfig: ClientConfig = await this.getClientConfig();
+            const children: AzExtTreeItem[] = [
+                new PostgresFunctionsTreeItem(this, clientConfig),
+                new PostgresTablesTreeItem(this, clientConfig)
+            ];
 
-        if (username && password) {
-            try {
-                const ssl: ConnectionOptions = {
-                    // Always provide the certificate since it is accepted even when SSL is disabled
-                    // Certificate source: https://aka.ms/AA7wnvl
-                    ca: BaltimoreCyberTrustRoot
-                };
+            if (this.parent.supportsStoredProcedures()) {
+                children.push(new PostgresStoredProceduresTreeItem(this, clientConfig));
+            }
 
-                const host: string = nonNullProp(this.parent.server, 'fullyQualifiedDomainName');
-                const clientConfig: ClientConfig = { user: username, password, ssl, host, port: 5432, database: this.databaseName };
+            return children;
+        } catch (error) {
+            const parsedError: IParsedError = parseError(error);
 
-                // Ensure the client config is valid before continuing
-                const client: Client = new Client(clientConfig);
-                await client.connect();
-
-                const functionsTreeItem = new PostgresFunctionsTreeItem(this, clientConfig);
-                const tablesTreeItem = new PostgresTablesTreeItem(this, clientConfig);
-
-                return [functionsTreeItem, tablesTreeItem];
-            } catch (error) {
-                const parsedError: IParsedError = parseError(error);
-
-                if (parsedError.errorType === invalidCredentialsErrorType) {
-                    // tslint:disable-next-line: no-floating-promises
-                    ext.ui.showWarningMessage(localize('couldNotConnect', 'Could not connect to "{0}": {1}', this.parent.label, parsedError.message));
-                } else if (parsedError.errorType === firewallNotConfiguredErrorType) {
-                    const firewallTreeItem: AzExtTreeItem = new GenericTreeItem(this, {
-                        contextValue: 'postgresFirewall',
-                        label: localize('configureFirewall', 'Configure firewall to connect to "{0}"...', this.parent.label),
-                        commandId: 'postgreSQL.configureFirewall'
-                    });
-                    firewallTreeItem.commandArgs = [this.parent];
-                    return [firewallTreeItem];
-                } else {
-                    throw error;
-                }
+            if (parsedError.errorType === invalidCredentialsErrorType) {
+                // tslint:disable-next-line: no-floating-promises
+                ext.ui.showWarningMessage(localize('couldNotConnect', 'Could not connect to "{0}": {1}', this.parent.label, parsedError.message));
+            } else if (parsedError.errorType === firewallNotConfiguredErrorType) {
+                const firewallTreeItem: AzExtTreeItem = new GenericTreeItem(this, {
+                    contextValue: 'postgresFirewall',
+                    label: localize('configureFirewall', 'Configure firewall to connect to "{0}"...', this.parent.label),
+                    commandId: 'postgreSQL.configureFirewall'
+                });
+                firewallTreeItem.commandArgs = [this.parent];
+                return [firewallTreeItem];
+            } else {
+                throw error;
             }
         }
 
@@ -104,11 +99,32 @@ export class PostgresDatabaseTreeItem extends AzureParentTreeItem<ISubscriptionC
         await client.databases.deleteMethod(azureUtils.getResourceGroupFromId(this.fullId), this.parent.name, this.databaseName);
     }
 
-    public addResourceAndSchemasEntry(resourceAndSchemas: { [key: string]: string[] }, name: string, schema: string): void {
-        if (resourceAndSchemas[name]) {
-            resourceAndSchemas[name].push(schema);
+    public async getClientConfig(): Promise<ClientConfig> {
+        const { username, password } = await this.parent.getCredentials();
+
+        if (username && password) {
+            const ssl: ConnectionOptions = {
+                // Always provide the certificate since it is accepted even when SSL is disabled
+                // Certificate source: https://aka.ms/AA7wnvl
+                ca: BaltimoreCyberTrustRoot
+            };
+
+            const host: string = nonNullProp(this.parent.server, 'fullyQualifiedDomainName');
+            const clientConfig: ClientConfig = { user: username, password, ssl, host, port: 5432, database: this.databaseName };
+
+            // Ensure the client config is valid before returning
+            const client: Client = new Client(clientConfig);
+            try {
+                await client.connect();
+                return clientConfig;
+            } finally {
+                await client.end();
+            }
         } else {
-            resourceAndSchemas[name] = [schema];
+            throw {
+                message: localize('mustEnterCredentials', 'Must enter credentials to connect to server.'),
+                code: invalidCredentialsErrorType
+            };
         }
     }
 }

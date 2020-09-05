@@ -19,7 +19,7 @@ export async function configurePostgresFirewall(context: IActionContext, treeIte
         treeItem = <PostgresServerTreeItem>await ext.tree.showTreeItemPicker(PostgresServerTreeItem.contextValue, context);
     }
 
-    const ip: string = await publicIp.v4();
+    const ip: string = await getPublicIp();
     await ext.ui.showWarningMessage(
         localize('firewallRuleWillBeAdded', 'A firewall rule for your IP ({0}) will be added to server "{1}". Would you like to continue?', ip, treeItem.server.name),
         { modal: true },
@@ -27,7 +27,6 @@ export async function configurePostgresFirewall(context: IActionContext, treeIte
     );
 
     await setFirewallRule(treeItem, ip);
-
 }
 
 export async function setFirewallRule(treeItem: PostgresServerTreeItem, ip: string): Promise<void> {
@@ -42,14 +41,28 @@ export async function setFirewallRule(treeItem: PostgresServerTreeItem, ip: stri
         endIpAddress: ip
     };
 
+    const progressMessage: string = localize('configuringFirewallRule', 'Adding firewall rule for IP "{0}" to server "{1}"...', ip, serverName);
     const options: vscode.ProgressOptions = {
         location: vscode.ProgressLocation.Notification,
-        title: localize('configuringFirewall', 'Adding firewall rule for IP "{0}" to server "{1}"...', ip, serverName)
+        title: progressMessage
     };
-
+    ext.outputChannel.appendLog(progressMessage);
     await vscode.window.withProgress(options, async () => {
         await client.firewallRules.createOrUpdate(resourceGroup, serverName, firewallRuleName, newFirewallRule);
     });
-
+    const completedMessage: string = localize('addedFirewallRule', 'Successfully added firewall rule for IP "{0}" to server "{1}".', ip, serverName);
+    vscode.window.showInformationMessage(completedMessage);
+    ext.outputChannel.appendLog(completedMessage);
     await treeItem.refresh();
+}
+
+export async function getPublicIp(): Promise<string> {
+    const options: vscode.ProgressOptions = {
+        location: vscode.ProgressLocation.Notification,
+        title: localize('gettingPublicIp', 'Getting public IP...')
+    };
+
+    return await vscode.window.withProgress(options, async () => {
+        return await publicIp.v4();
+    });
 }

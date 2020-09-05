@@ -54,7 +54,7 @@ export class MongoDatabaseTreeItem extends AzureParentTreeItem<IMongoTreeRoot> {
     }
 
     public get iconPath(): string | vscode.Uri | { light: string | vscode.Uri; dark: string | vscode.Uri } {
-        return getThemeAgnosticIconPath('Database.svg');
+        return getThemeAgnosticIconPath('DocDatabase.svg');
     }
 
     public hasMoreChildrenImpl(): boolean {
@@ -130,6 +130,11 @@ export class MongoDatabaseTreeItem extends AzureParentTreeItem<IMongoTreeRoot> {
 
     private async executeCommandInShell(command: MongoCommand, context: IActionContext): Promise<string> {
         context.telemetry.properties.executeInShell = "true";
+
+        if (this.root.isEmulator) {
+            // Ensure the emulator is running before creating the shell. Shell errors are generic and don't include emulator specific info
+            await this.connectToDb();
+        }
 
         // CONSIDER: Re-using the shell instead of disposing it each time would allow us to keep state
         //  (JavaScript variables, etc.), but we would need to deal with concurrent requests, or timed-out
